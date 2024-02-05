@@ -21,12 +21,17 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "acoustic_ec.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+/*Handler and Config structures for AEC*/
+AcousticEC_Handler_t   EchoHandlerInstance;
+AcousticEC_Config_t    EchoConfigInstance;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -58,7 +63,15 @@ SPI_HandleTypeDef hspi2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+uint32_t inbuff[64];
+uint32_t outbuff[64];
+int16_t  inAbuff1[16];
+int16_t  inBbuff1[16];
+int16_t  inAbuff2[16];
+int16_t  inBbuff2[16];
+int16_t  echoOut1[16];
+int16_t  echoOut2[16];
+volatile bool shouldProcess = false;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -124,6 +137,47 @@ int main(void)
   MX_USART2_UART_Init();
   MX_SAI1_Init();
   /* USER CODE BEGIN 2 */
+  /*AEC Initialization*/
+
+     uint32_t error_value = 0;
+
+     EchoHandlerInstance.tail_length=1024;
+     EchoHandlerInstance.preprocess_init = 1;
+     EchoHandlerInstance.ptr_primary_channels=1;
+     EchoHandlerInstance.ptr_reference_channels=1;
+     EchoHandlerInstance.ptr_output_channels=1;
+     AcousticEC_getMemorySize(&EchoHandlerInstance);
+
+     EchoHandlerInstance.pInternalMemory = (uint32_t *)malloc(EchoHandlerInstance.internal_memory_size);
+     if(EchoHandlerInstance.pInternalMemory == NULL)
+     {
+       while(1);
+     }
+
+     error_value = AcousticEC_Init((AcousticEC_Handler_t *)&EchoHandlerInstance);
+     if(error_value != 0)
+     {
+       while(1);
+     }
+
+     EchoConfigInstance.preprocess_state = ACOUSTIC_EC_PREPROCESS_ENABLE;
+     EchoConfigInstance.AGC_value = 0;
+     EchoConfigInstance.noise_suppress_default = -15; /* Default: -15 */
+     EchoConfigInstance.echo_suppress_default = -40; /* Default: -40 */
+     EchoConfigInstance.echo_suppress_active = -15;  /* Default: -15 */
+     EchoConfigInstance.residual_echo_remove = 1;    /* Default: 1   */
+
+     error_value = AcousticEC_setConfig((AcousticEC_Handler_t *)&EchoHandlerInstance, (AcousticEC_Config_t *) &EchoConfigInstance);
+     if(error_value != 0)
+     {
+       while(1);
+     }
+     if (HAL_I2C_EnableListen_IT(&hi2c3) != HAL_OK)
+      {
+    	  Error_Handler();
+      }
+
+
 
   /* USER CODE END 2 */
 
@@ -131,6 +185,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if(shouldProcess == true)
+	  	  {
+	  		  AcousticEC_Process((AcousticEC_Handler_t *)&EchoHandlerInstance);
+	  		  shouldProcess = false;
+	  	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -406,9 +465,9 @@ static void MX_I2C3_Init(void)
 
   /* USER CODE END I2C3_Init 1 */
   hi2c3.Instance = I2C3;
-  hi2c3.Init.ClockSpeed = 100000;
+  hi2c3.Init.ClockSpeed = 400000;
   hi2c3.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c3.Init.OwnAddress1 = 0;
+  hi2c3.Init.OwnAddress1 = 170;
   hi2c3.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c3.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
   hi2c3.Init.OwnAddress2 = 0;
@@ -636,6 +695,65 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai)
+{
+	for(int i = 0;i<32;i = i+2)
+	{
+		inAbuff1[i/2] = (int16_t)inbuff[i];
+	}
+	for(int i = 0;i<32;i = i+2)
+	{
+		inBbuff1[i/2] = (int16_t)inbuff[i+1];
+	}
+	if(AcousticEC_Data_Input(&inAbuff1, &inBbuff1, &echoOut1, (AcousticEC_Handler_t *)&EchoHandlerInstance))
+	{
+		shouldProcess = true;
+	}
+	for(int i = 0;i<16;i++)
+		{
+			outbuff[i*2] = echoOut1[i];
+			outbuff[i*2+1] = echoOut1[i];
+		}
+//feedtrough
+
+//	for(int i = 0;i<16;i++)
+//		{
+//			outbuff[i*2] = inBbuff1[i];
+//			outbuff[i*2+1] = inBbuff1[i];
+//		}
+}
+void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai)
+{
+	for(int i = 32;i<64;i = i+2)
+		{
+			inAbuff2[(i-32)/2] = (int16_t)inbuff[i];
+		}
+	for(int i = 32;i<64;i = i+2)
+		{
+			inBbuff2[(i-32)/2] = (int16_t)inbuff[i+1];
+		}
+
+	if(AcousticEC_Data_Input(&inAbuff2, &inBbuff2, &echoOut2, (AcousticEC_Handler_t *)&EchoHandlerInstance))
+		{
+			shouldProcess = true;
+		}
+
+	for(int i = 16;i<32;i++)
+		{
+			outbuff[i*2] = echoOut2[i-16];
+			outbuff[i*2+1] = echoOut2[i-16];
+		}
+//feedtrough
+
+//	for(int i = 16;i<32;i++)
+//		{
+//			outbuff[i*2] = inBbuff2[i-16];
+//			outbuff[i*2+1] = inBbuff2[i-16];
+//		}
+}
+
+
+
 
 /* USER CODE END 4 */
 

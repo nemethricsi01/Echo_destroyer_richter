@@ -1,0 +1,5 @@
+../Core/digitpoti/digitpoti.c:51:13:writePoti0	1
+../Core/digitpoti/digitpoti.c:56:13:writePoti1	1
+../Core/digitpoti/digitpoti.c:61:13:writePoti2	1
+../Core/digitpoti/digitpoti.c:66:13:writePoti3	1
+../Core/digitpoti/digitpoti.c:72:6:sendValToPoti	1
