@@ -1,0 +1,4 @@
+../Core/digitpoti/i2c_slave.c:36:6:HAL_I2C_ListenCpltCallback	1
+../Core/digitpoti/i2c_slave.c:41:6:HAL_I2C_AddrCallback	4
+../Core/digitpoti/i2c_slave.c:71:6:HAL_I2C_SlaveRxCpltCallback	2
+../Core/digitpoti/i2c_slave.c:90:6:HAL_I2C_ErrorCallback	2

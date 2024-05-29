@@ -10,17 +10,22 @@
 #include <stdint.h>
 #include "main.h"
 
+#include <stdbool.h>
+
 
 typedef struct  {
-	uint8_t micVal;
-	uint8_t refVal;
-	uint8_t outVal;
-	uint8_t bypVal;
+	volatile uint8_t micVal;
+	volatile uint8_t refVal;
+	volatile uint8_t outVal;
+	volatile uint8_t bypVal;
 }DigitPot;
 
 
 
 void sendValToPoti(DigitPot *poti, I2C_HandleTypeDef *i2chandle);
-
+void write_poti_settings( I2C_HandleTypeDef *i2chandle,uint8_t poti,bool TermAConnected,bool TermBConnected,
+		bool TermWConnected);
+HAL_StatusTypeDef writePotiFromNvs( DigitPot *poti);
+HAL_StatusTypeDef writePotiToNvs( DigitPot *poti);
 
 #endif /* DIGITPOTI_DIGITPOTI_H_ */

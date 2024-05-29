@@ -28,13 +28,19 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h \
+ ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_iwdg.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sai.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sai_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h \
+ ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h \
+ ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h \
- C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/STM32_AcousticEC_Library/Inc/acoustic_ec.h
+ C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/STM32_AcousticEC_Library/Inc/acoustic_ec.h \
+ C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/NVS/nvs.h \
+ C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/digitpoti/digitpoti.h \
+ C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/debug_led/debug_led.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 ../Core/Inc/stm32f4xx_hal_conf.h:
@@ -65,10 +71,16 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h:
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_iwdg.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sai.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sai_ex.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h:
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h:
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h:
 C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/STM32_AcousticEC_Library/Inc/acoustic_ec.h:
+C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/NVS/nvs.h:
+C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/digitpoti/digitpoti.h:
+C:/Users/nemet/STM32CubeIDE/workspace_1.10.1/Echo_destroyer_richter/Core/debug_led/debug_led.h:

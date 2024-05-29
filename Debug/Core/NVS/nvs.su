@@ -1,0 +1,2 @@
+../Core/NVS/nvs.c:12:19:write_to_flash	56	dynamic
+../Core/NVS/nvs.c:47:19:read_from_flash	0	static

@@ -11,9 +11,11 @@ RM := rm -rf
 -include sources.mk
 -include Drivers/STM32F4xx_HAL_Driver/Src/subdir.mk
 -include Core/digitpoti/subdir.mk
+-include Core/debug_led/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
 -include Core/STM32_AcousticEC_Library/Src/subdir.mk
+-include Core/NVS/subdir.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)

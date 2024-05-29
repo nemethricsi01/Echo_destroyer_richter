@@ -25,6 +25,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "nvs.h"
+#include "digitpoti.h"
+#include "math.h"
+#include "debug_led.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,6 +40,15 @@ AcousticEC_Config_t    EchoConfigInstance;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define PI 3.14159265
+#define SAMPLE_RATE 32000
+#define FREQUENCY 440
+#define AMPLITUDE 32767
+#define BUFFER_SIZE 32
+int16_t buffer[BUFFER_SIZE];
+int16_t buffer2[BUFFER_SIZE];
+uint8_t whichBuffer = 0;
+HAL_StatusTypeDef ret;
 
 /* USER CODE END PD */
 
@@ -53,12 +66,16 @@ CAN_HandleTypeDef hcan1;
 I2C_HandleTypeDef hi2c1;
 I2C_HandleTypeDef hi2c3;
 
+IWDG_HandleTypeDef hiwdg;
+
 SAI_HandleTypeDef hsai_BlockA1;
 SAI_HandleTypeDef hsai_BlockB1;
 DMA_HandleTypeDef hdma_sai1_a;
 DMA_HandleTypeDef hdma_sai1_b;
 
 SPI_HandleTypeDef hspi2;
+
+TIM_HandleTypeDef htim14;
 
 UART_HandleTypeDef huart2;
 
@@ -71,7 +88,29 @@ int16_t  inAbuff2[16];
 int16_t  inBbuff2[16];
 int16_t  echoOut1[16];
 int16_t  echoOut2[16];
+
+volatile int16_t Micbuff[32];
+volatile int16_t Refbuff[32];
+volatile int16_t Outbuff[32];
+volatile int16_t MicMaxVals[10];
+volatile uint8_t MicMaxValsPtr = 0;
+volatile int16_t MicMaxVal = 0;
+
+volatile int16_t RefMaxVals[10];
+volatile uint8_t RefMaxValsPtr = 0;
+volatile int16_t RefMaxVal = 0;
+
+volatile int16_t OutMaxVals[10];
+volatile uint8_t OutMaxValsPtr = 0;
+volatile int16_t OutMaxVal = 0;
+
+
 volatile bool shouldProcess = false;
+
+DigitPot digitpoti;
+uint16_t ledBlinkTimer = 0;
+uint8_t savepotiflag = 0;
+double phase = 0.0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,13 +126,75 @@ static void MX_I2C3_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SAI1_Init(void);
+static void MX_TIM14_Init(void);
+static void MX_IWDG_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void generate_sine_wave() {
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        double t = (double)i / BUFFER_SIZE;
+        buffer[i] = (int16_t)(AMPLITUDE * sin(2.0 * PI * t));
+    }
+}
+void generate_sine_wave2() {
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        double t = (double)i / BUFFER_SIZE;
+        buffer2[i] = (int16_t)(AMPLITUDE * sin(2.0 * PI * 3.0 * t));
+    }
+}
 
+int16_t find_abs_max(int16_t* buffer, int size)
+{
+    int16_t max_val = 0;
+    for (int i = 0; i < size; i++) {
+        if (abs(buffer[i]) > max_val) {
+            max_val = abs(buffer[i]);
+        }
+    }
+    return max_val;
+}
+static void reset_devices(void)//resets digitpoti and codec
+{
+	HAL_GPIO_WritePin(CODEC_RST_GPIO_Port, CODEC_RST_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(DIGIPOT_RESET_GPIO_Port, DIGIPOT_RESET_Pin, GPIO_PIN_SET);
+	HAL_Delay(100);
+	HAL_GPIO_WritePin(CODEC_RST_GPIO_Port, CODEC_RST_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(DIGIPOT_RESET_GPIO_Port, DIGIPOT_RESET_Pin, GPIO_PIN_RESET);
+	HAL_Delay(100);
+	HAL_GPIO_WritePin(CODEC_RST_GPIO_Port, CODEC_RST_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(DIGIPOT_RESET_GPIO_Port, DIGIPOT_RESET_Pin, GPIO_PIN_SET);
+	HAL_Delay(100);
+	HAL_GPIO_WritePin(CODEC_RST_GPIO_Port, CODEC_RST_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(DIGIPOT_RESET_GPIO_Port, DIGIPOT_RESET_Pin, GPIO_PIN_RESET);
+	HAL_Delay(100);
+	HAL_GPIO_WritePin(CODEC_RST_GPIO_Port, CODEC_RST_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(DIGIPOT_RESET_GPIO_Port, DIGIPOT_RESET_Pin, GPIO_PIN_SET);
+}
+static void setI2CSlaveAddress(void)
+{
+	uint8_t add = 0;
+	add = (HAL_GPIO_ReadPin(I2C_addr2_GPIO_Port, I2C_addr2_Pin)^1)<<2;
+	add |= (HAL_GPIO_ReadPin(I2C_addr1_GPIO_Port, I2C_addr1_Pin)^1)<<1;
+	add |= HAL_GPIO_ReadPin(I2C_addr0_GPIO_Port, I2C_addr0_Pin)^1;
+	add += 1;
+	hi2c3.Instance = I2C3;
+	  hi2c3.Init.ClockSpeed = 400000;
+	  hi2c3.Init.DutyCycle = I2C_DUTYCYCLE_2;
+	  hi2c3.Init.OwnAddress1 = add<<1;
+	  hi2c3.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+	  hi2c3.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+	  hi2c3.Init.OwnAddress2 = 0;
+	  hi2c3.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+	  hi2c3.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+	  if (HAL_I2C_Init(&hi2c3) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -136,7 +237,11 @@ int main(void)
   MX_SPI2_Init();
   MX_USART2_UART_Init();
   MX_SAI1_Init();
+  MX_TIM14_Init();
+  //MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_Base_Start_IT(&htim14);
+  current_state = PROG_INITIALIZATION;
   /*AEC Initialization*/
 
      uint32_t error_value = 0;
@@ -172,24 +277,47 @@ int main(void)
      {
        while(1);
      }
+     setI2CSlaveAddress();
      if (HAL_I2C_EnableListen_IT(&hi2c3) != HAL_OK)
       {
     	  Error_Handler();
       }
+     HAL_Delay(1000);
 
-
-
+     HAL_SAI_Transmit_DMA(&hsai_BlockB1, outbuff, 64);
+     HAL_SAI_Receive_DMA(&hsai_BlockA1, &inbuff, 64);
+     generate_sine_wave();
+     generate_sine_wave2();
+     ret = writePotiFromNvs(&digitpoti);
+     if(ret == HAL_ERROR)
+     {
+    	 current_state = PROG_ERROR;
+     }
+     reset_devices();
+     sendValToPoti(&digitpoti, &hi2c1);
+     HAL_Delay(1000);
+     if(ret == HAL_OK)
+     {
+    	current_state = PROG_NORMAL_OPERATION;
+     }
+     //MX_IWDG_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if(savepotiflag == 1)
+	  {
+		  writePotiToNvs(&digitpoti);
+		  savepotiflag = 0;
+	  }
 	  if(shouldProcess == true)
 	  	  {
 	  		  AcousticEC_Process((AcousticEC_Handler_t *)&EchoHandlerInstance);
 	  		  shouldProcess = false;
 	  	  }
+	  HAL_IWDG_Refresh(&hiwdg);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -214,8 +342,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
@@ -394,11 +523,11 @@ static void MX_CAN1_Init(void)
 
   /* USER CODE END CAN1_Init 1 */
   hcan1.Instance = CAN1;
-  hcan1.Init.Prescaler = 16;
+  hcan1.Init.Prescaler = 330;
   hcan1.Init.Mode = CAN_MODE_NORMAL;
   hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan1.Init.TimeSeg1 = CAN_BS1_1TQ;
-  hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
+  hcan1.Init.TimeSeg1 = CAN_BS1_7TQ;
+  hcan1.Init.TimeSeg2 = CAN_BS2_6TQ;
   hcan1.Init.TimeTriggeredMode = DISABLE;
   hcan1.Init.AutoBusOff = DISABLE;
   hcan1.Init.AutoWakeUp = DISABLE;
@@ -480,6 +609,34 @@ static void MX_I2C3_Init(void)
   /* USER CODE BEGIN I2C3_Init 2 */
 
   /* USER CODE END I2C3_Init 2 */
+
+}
+
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_IWDG_Init(void)
+{
+
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_16;
+  hiwdg.Init.Reload = 1500;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
 
 }
 
@@ -568,6 +725,37 @@ static void MX_SPI2_Init(void)
   /* USER CODE BEGIN SPI2_Init 2 */
 
   /* USER CODE END SPI2_Init 2 */
+
+}
+
+/**
+  * @brief TIM14 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM14_Init(void)
+{
+
+  /* USER CODE BEGIN TIM14_Init 0 */
+
+  /* USER CODE END TIM14_Init 0 */
+
+  /* USER CODE BEGIN TIM14_Init 1 */
+
+  /* USER CODE END TIM14_Init 1 */
+  htim14.Instance = TIM14;
+  htim14.Init.Prescaler = 900;
+  htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim14.Init.Period = 20000;
+  htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM14_Init 2 */
+
+  /* USER CODE END TIM14_Init 2 */
 
 }
 
@@ -666,7 +854,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pins : I2C_addr0_Pin I2C_addr1_Pin I2C_addr2_Pin */
   GPIO_InitStruct.Pin = I2C_addr0_Pin|I2C_addr1_Pin|I2C_addr2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PC9 */
@@ -700,20 +888,42 @@ void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai)
 	for(int i = 0;i<32;i = i+2)
 	{
 		inAbuff1[i/2] = (int16_t)inbuff[i];
+		Micbuff[i/2] = (int16_t)inbuff[i];
 	}
 	for(int i = 0;i<32;i = i+2)
 	{
 		inBbuff1[i/2] = (int16_t)inbuff[i+1];
+		Refbuff[i/2] = (int16_t)inbuff[i+1];
 	}
+
 	if(AcousticEC_Data_Input(&inAbuff1, &inBbuff1, &echoOut1, (AcousticEC_Handler_t *)&EchoHandlerInstance))
 	{
 		shouldProcess = true;
 	}
-	for(int i = 0;i<16;i++)
-		{
-			outbuff[i*2] = echoOut1[i];
-			outbuff[i*2+1] = echoOut1[i];
-		}
+//	for(int i = 0;i<16;i++)
+//		{
+//			outbuff[i*2] = echoOut1[i];
+//			outbuff[i*2+1] = buffer[i];
+//		}
+	if(whichBuffer == 0)
+	{
+		for(int i = 0;i<16;i++)//route the 500Hz sine to the out and ext
+					{
+						outbuff[i*2] = echoOut1[i];
+						Outbuff[i] = echoOut1[i];
+						outbuff[i*2+1] = buffer[i];
+					}
+	}
+	else
+	{
+		for(int i = 0;i<16;i++)//route the 500Hz sine to the out and ext
+					{
+						outbuff[i*2] = echoOut1[i];
+						Outbuff[i] = echoOut1[i];
+						outbuff[i*2+1] = buffer2[i];
+					}
+	}
+
 //feedtrough
 
 //	for(int i = 0;i<16;i++)
@@ -727,10 +937,12 @@ void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai)
 	for(int i = 32;i<64;i = i+2)
 		{
 			inAbuff2[(i-32)/2] = (int16_t)inbuff[i];
+			Micbuff[i/2] = (int16_t)inbuff[i];
 		}
 	for(int i = 32;i<64;i = i+2)
 		{
 			inBbuff2[(i-32)/2] = (int16_t)inbuff[i+1];
+			Refbuff[i/2]	= (int16_t)inbuff[i+1];
 		}
 
 	if(AcousticEC_Data_Input(&inAbuff2, &inBbuff2, &echoOut2, (AcousticEC_Handler_t *)&EchoHandlerInstance))
@@ -738,11 +950,54 @@ void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai)
 			shouldProcess = true;
 		}
 
-	for(int i = 16;i<32;i++)
+
+//	for(int i = 16;i<32;i++)
+//		{
+//			outbuff[i*2] = echoOut2[i-16];
+//			outbuff[i*2+1] = buffer[i];
+//		}
+	if(whichBuffer == 0)
+	{
+		for(int i = 16;i<32;i++)//route the 500Hz sine to the out and ext
+					{
+						outbuff[i*2] = echoOut2[i-16];
+						Outbuff[i] = echoOut2[i-16];
+						outbuff[i*2+1] = buffer[i];
+					}
+		//whichBuffer = 1;
+	}
+	else
+	{
+		for(int i = 16;i<32;i++)//route the 500Hz sine to the out and ext
+					{
+						outbuff[i*2] = echoOut2[i-16];
+						Outbuff[i] = echoOut2[i-16];
+						outbuff[i*2+1] = buffer2[i];
+					}
+		whichBuffer = 0;
+	}
+	MicMaxVals[MicMaxValsPtr] = find_abs_max(Micbuff, 32);
+	RefMaxVals[RefMaxValsPtr] = find_abs_max(Refbuff, 32);
+	OutMaxVals[OutMaxValsPtr] = find_abs_max(Outbuff, 32);
+	MicMaxValsPtr++;
+	RefMaxValsPtr++;
+	OutMaxValsPtr++;
+	if(MicMaxValsPtr > 9)
 		{
-			outbuff[i*2] = echoOut2[i-16];
-			outbuff[i*2+1] = echoOut2[i-16];
+			MicMaxValsPtr = 0;
+			MicMaxVal = find_abs_max(MicMaxVals, 10);
 		}
+	if(RefMaxValsPtr > 9)
+		{
+			RefMaxValsPtr = 0;
+			RefMaxVal = find_abs_max(RefMaxVals, 10);
+		}
+	if(OutMaxValsPtr > 9)
+		{
+			OutMaxValsPtr = 0;
+			OutMaxVal = find_abs_max(OutMaxVals, 10);
+		}
+
 //feedtrough
 
 //	for(int i = 16;i<32;i++)

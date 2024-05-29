@@ -1,5 +1,9 @@
-../Core/digitpoti/digitpoti.c:51:13:writePoti0	16	static
-../Core/digitpoti/digitpoti.c:56:13:writePoti1	16	static
-../Core/digitpoti/digitpoti.c:61:13:writePoti2	16	static
-../Core/digitpoti/digitpoti.c:66:13:writePoti3	16	static
-../Core/digitpoti/digitpoti.c:72:6:sendValToPoti	32	static
+../Core/digitpoti/digitpoti.c:66:13:writePoti0	0	static
+../Core/digitpoti/digitpoti.c:71:13:writePoti1	0	static
+../Core/digitpoti/digitpoti.c:77:13:writePoti2	0	static
+../Core/digitpoti/digitpoti.c:83:13:writePoti3	0	static
+../Core/digitpoti/digitpoti.c:164:26:checkPotirange	0	static
+../Core/digitpoti/digitpoti.c:93:6:write_poti_settings	24	static
+../Core/digitpoti/digitpoti.c:177:19:writePotiFromNvs	16	static
+../Core/digitpoti/digitpoti.c:201:19:writePotiToNvs	8	static
+../Core/digitpoti/digitpoti.c:212:6:sendValToPoti	32	static

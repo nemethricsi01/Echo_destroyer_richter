@@ -22,9 +22,11 @@ C_DEPS :=
 
 # Every subdirectory with source files must be described here
 SUBDIRS := \
+Core/NVS \
 Core/STM32_AcousticEC_Library/Src \
 Core/Src \
 Core/Startup \
+Core/debug_led \
 Core/digitpoti \
 Drivers/STM32F4xx_HAL_Driver/Src \
 
